@@ -1,81 +1,85 @@
-﻿#include "SkyPrompt/API.hpp";
-#include "SimpleIni.h";
+﻿#include "SimpleIni.h"
+#include "SkyPrompt/API.hpp"
 
-TESGlobal* hotkey;
-std::vector<BGSKeyword*> allowedFood;
-SkyPromptAPI::Prompt poisonPrompt{"$DBDUI_ADD", 0, 0, SkyPromptAPI::PromptType::kHint};
-std::array<SkyPromptAPI::Prompt, 1> prompts = {poisonPrompt};
-SkyPromptAPI::ClientID clientID;
-std::pair<RE::INPUT_DEVICE, uint32_t> key{INPUT_DEVICE::kKeyboard, 0};
-bool bFloatingPrompt = true;
+namespace {
+    TESGlobal* hotkey = nullptr;
+    std::vector<BGSKeyword*> allowedFood;
+    SkyPromptAPI::Prompt poisonPrompt{"$DBDUI_ADD", 0, 0, SkyPromptAPI::PromptType::kHint};
+    std::array prompts = {poisonPrompt};
+    SkyPromptAPI::ClientID clientID;
+    SkyPromptAPI::HandshakeKey handshake_key = 0x44444754; // DDGT
+    std::pair<INPUT_DEVICE, uint32_t> key{INPUT_DEVICE::kKeyboard, 0};
+    bool bFloatingPrompt = true;
 
-class MyPromptSink : public SkyPromptAPI::PromptSink {
-public:
-    std::span<const SkyPromptAPI::Prompt> GetPrompts() const override {
-        return prompts;
-    };
+    bool CanBePoisoned(const TESBoundObject* form) { return form->HasKeywordInArray(allowedFood, false); }
 
-    void ProcessEvent(SkyPromptAPI::PromptEvent event) const override {
-    };
-};
+    class MyPromptSink : public SkyPromptAPI::PromptSink {
+    public:
+        [[nodiscard]] std::span<const SkyPromptAPI::Prompt> GetPrompts() const override { return prompts; };
 
-static MyPromptSink g_PromptSink;
-
-bool CanBePoisoned(TESBoundObject* form) {
-    return form->HasKeywordInArray(allowedFood, false);
-}
-
-struct mySink : public RE::BSTEventSink<SKSE::CrosshairRefEvent> {
-    RE::BSEventNotifyControl ProcessEvent(const SKSE::CrosshairRefEvent* event,
-                                          RE::BSTEventSource<SKSE::CrosshairRefEvent>* source) {
-        static bool bShowing = false;
-        if (bShowing) {
-            SkyPromptAPI::RemovePrompt(&g_PromptSink, clientID);
-            bShowing = false;
+        void ProcessEvent(SkyPromptAPI::PromptEvent) const override {
         }
-        auto ref = event->crosshairRef;
-        if (ref) {
-            if (auto* base = ref ? ref->GetBaseObject() : nullptr) {
-                if (base->GetFormType() == FormType::AlchemyItem && CanBePoisoned(base)) {
-                    if (bFloatingPrompt) {
-                        prompts[0].refid = ref->GetFormID();
+    };
+
+    MyPromptSink g_PromptSink;
+
+    struct mySink : BSTEventSink<CrosshairRefEvent> {
+        BSEventNotifyControl ProcessEvent(const CrosshairRefEvent* event,
+                                          BSTEventSource<CrosshairRefEvent>*) override {
+            static bool bShowing = false;
+            if (bShowing) {
+                SkyPromptAPI::RemovePrompt(&g_PromptSink, clientID);
+                bShowing = false;
+            }
+            if (const auto ref = event->crosshairRef) {
+                if (const auto* base = ref ? ref->GetBaseObject() : nullptr) {
+                    if (base->GetFormType() == FormType::AlchemyItem && CanBePoisoned(base)) {
+                        if (bFloatingPrompt) {
+                            prompts[0].refid = ref->GetFormID();
+                        }
+                        key.second = static_cast<uint32_t>(hotkey->value);
+                        prompts[0].button_key = std::span{&key, 1};
+                        if (!SkyPromptAPI::SendPrompt(&g_PromptSink, clientID)) {
+                            //
+                        }
+                        bShowing = true;
                     }
-                    key.second = (uint32_t)hotkey->value;
-                    prompts[0].button_key = std::span{&key, 1};
-                    SkyPromptAPI::SendPrompt(&g_PromptSink, clientID);
-                    bShowing = true;
                 }
             }
+
+            return BSEventNotifyControl::kContinue;
         }
+    };
 
-        return RE::BSEventNotifyControl::kContinue;
-    }
-};
+    void setup() {
+        hotkey = TESForm::LookupByEditorID<TESGlobal>("DBD_Hotkey");
+        if (hotkey) {
+            static mySink g_EventSink;
+            GetCrosshairRefEventSource()->AddEventSink(&g_EventSink);
+            allowedFood.reserve(1);
+            allowedFood.push_back(TESForm::LookupByEditorID<BGSKeyword>("DBD_Drink"));
+            clientID = SkyPromptAPI::RequestClientID();
+            if (!SkyPromptAPI::RequestHandshake(clientID, handshake_key, handshake_key)) {
+                // Handshake request failed
+            }
 
-void setup() {
-    hotkey = TESForm::LookupByEditorID<TESGlobal>("DBD_Hotkey");
-    if (hotkey) {
-        static mySink g_EventSink;
-        SKSE::GetCrosshairRefEventSource()->AddEventSink(&g_EventSink);
-        allowedFood.reserve(1);
-        allowedFood.push_back(TESForm::LookupByEditorID<BGSKeyword>("DBD_Drink"));
-        clientID = SkyPromptAPI::RequestClientID();
-
-        CSimpleIniA ini;
-        std::string filePath = "Data/SKSE/Plugins/DeadByDiningUI.ini";
-        if (ini.LoadFile(filePath.c_str()) == SI_OK) {
-            bFloatingPrompt = ini.GetBoolValue("Main", "bFloatingPrompt", true);
+            CSimpleIniA ini;
+            const std::string filePath = "Data/SKSE/Plugins/DeadByDiningUI.ini";
+            if (ini.LoadFile(filePath.c_str()) == SI_OK) {
+                bFloatingPrompt = ini.GetBoolValue("Main", "bFloatingPrompt", true);
+            }
         }
     }
 }
 
 SKSEPluginLoad(const SKSE::LoadInterface* skse) {
-    SKSE::Init(skse);
+    Init(skse);
 
-    SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* message) {
-        if (message->type == SKSE::MessagingInterface::kDataLoaded) {
+    // ReSharper disable once CppParameterMayBeConstPtrOrRef
+    GetMessagingInterface()->RegisterListener([](MessagingInterface::Message* message) {
+        if (message->type == MessagingInterface::kDataLoaded) {
             setup();
-        };
+        }
     });
 
     return true;
