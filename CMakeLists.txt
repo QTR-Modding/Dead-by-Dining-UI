@@ -1,37 +1,30 @@
-# It's recommended to set a minimum CMake version.
-# If you use CMake features from higher versions, update this to match.
 cmake_minimum_required(VERSION 3.21)
-
-# Set your project name. This will be the name of your SKSE .dll file.
-project(DeadByDiningUI VERSION 0.0.1 LANGUAGES CXX)
-
-# #
-# YOU DO NOT NEED TO EDIT ANYTHING BELOW HERE
-# #
-
-# If you're not using a mod manager, you probably want the SKSE plugin to go
-# inside of your Skyrim "Data" folder.
-#
-# To do this automatically, set the `SKYRIM_FOLDER` environment variable
-# to the path of your Skyrim Special Edition folder
+project(DeadByDiningUI VERSION 1.0.1 LANGUAGES CXX)
 if(DEFINED ENV{SKYRIM_FOLDER} AND IS_DIRECTORY "$ENV{SKYRIM_FOLDER}/Data")
     set(OUTPUT_FOLDER "$ENV{SKYRIM_FOLDER}/Data")
 endif()
 
-# If you're using Mod Organizer 2 or Vortex, you might want this to go inside
-# of your "mods" folder, inside of a subfolder named "<your mod>".
-#
-# To do this automatically, set the `SKYRIM_MODS_FOLDER` environment variable
-# to the path of your "mods" folder
 if(DEFINED ENV{SKYRIM_MODS_FOLDER} AND IS_DIRECTORY "$ENV{SKYRIM_MODS_FOLDER}")
     set(OUTPUT_FOLDER "$ENV{SKYRIM_MODS_FOLDER}/${PROJECT_NAME}")
 endif()
 
 # Otherwise, you can set OUTPUT_FOLDER to any place you'd like :)
-set(OUTPUT_FOLDER "I:/SME/mods/Dead By Dining - Show in UI")
+# set(OUTPUT_FOLDER "I:/SME/mods/Dead By Dining - Show in UI")
+
+
+set(ENABLE_SKYRIM_SE ON CACHE BOOL " " FORCE)
+set(ENABLE_SKYRIM_AE ON CACHE BOOL " " FORCE)
+set(ENABLE_SKYRIM_VR ON CACHE BOOL " " FORCE)
+set(BUILD_TESTS OFF CACHE BOOL " " FORCE)
+
+add_subdirectory("$ENV{COMMONLIB_SSE_FOLDER}" ${CMAKE_CURRENT_BINARY_DIR}/_deps/clib-build)
+get_target_property(COMMONLIB_SRC_DIR CommonLibSSE SOURCE_DIR)
+
+set(BUILD_TESTS OFF)
+include(${COMMONLIB_SRC_DIR}/cmake/CommonLibSSE.cmake)
+
 
 # Setup your SKSE plugin as an SKSE plugin!
-find_package(CommonLibSSE CONFIG REQUIRED)
 add_commonlibsse_plugin(${PROJECT_NAME} SOURCES plugin.cpp) # <--- specifies plugin.cpp
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23) # <--- use C++23 standard
 target_precompile_headers(${PROJECT_NAME} PRIVATE PCH.h) # <--- PCH.h is required!
