@@ -5,8 +5,9 @@ namespace {
     TESGlobal* hotkey = nullptr;
     std::vector<BGSKeyword*> allowedFood;
     SkyPromptAPI::Prompt poisonPrompt{"$DBDUI_ADD", 0, 0, SkyPromptAPI::PromptType::kHint};
-    std::array<SkyPromptAPI::Prompt, 1> prompts = {poisonPrompt};
+    std::array prompts = {poisonPrompt};
     SkyPromptAPI::ClientID clientID;
+    SkyPromptAPI::HandshakeKey handshake_key = 0x44444754; // DDGT
     std::pair<INPUT_DEVICE, uint32_t> key{INPUT_DEVICE::kKeyboard, 0};
     bool bFloatingPrompt = true;
 
@@ -58,6 +59,9 @@ namespace {
             allowedFood.reserve(1);
             allowedFood.push_back(TESForm::LookupByEditorID<BGSKeyword>("DBD_Drink"));
             clientID = SkyPromptAPI::RequestClientID();
+            if (!SkyPromptAPI::RequestHandshake(clientID, handshake_key, handshake_key)) {
+                // Handshake request failed
+            }
 
             CSimpleIniA ini;
             const std::string filePath = "Data/SKSE/Plugins/DeadByDiningUI.ini";
