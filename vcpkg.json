@@ -1,9 +1,19 @@
 {
-    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
-    "name": "dead-by-dining-ui",
-    "version-string": "1.0.0",
-    "dependencies": [
-      "commonlibsse-ng",
-      "simpleini"
-    ]
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "dead-by-dining-ui",
+  "version-string": "1.0.1",
+  "dependencies": [
+    "spdlog",
+    "rapidcsv",
+    "directxtk",
+    "simpleini",
+    "skyprompt-api"
+  ],
+  "overrides": [
+    {
+      "name": "fmt",
+      "version": "10.1.0"
+    }
+  ],
+  "builtin-baseline": "74e6536215718009aae747d86d84b78376bf9e09"
 }
